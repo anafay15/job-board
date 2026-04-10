@@ -26,7 +26,7 @@ jobs:
           curl -f http://localhost/health || exit 1
 
       - name: Stop docker compose
-        run: docker-compose down
+        run: docker compose down
 
   deploy:
     needs: build

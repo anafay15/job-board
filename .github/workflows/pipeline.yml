@@ -17,7 +17,7 @@ jobs:
       - name: Build and push Docker image
         uses: docker/build-push-action@v2
 
-       - name: Start docker compose
+      - name: Start docker compose
          run: docker-compose up -d 
 
       - name: Test health endpoint

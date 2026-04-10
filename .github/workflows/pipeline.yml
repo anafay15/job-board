@@ -20,7 +20,7 @@ jobs:
       - name: Test health endpoint
         run: |
           sleep 10  # Give the app 10 seconds to boot up
-          curl -f http://localhost:3000/health || exit 1
+          curl -f http://localhost/health || exit 1
 
       - name: Stop docker compose
         run: docker-compose down

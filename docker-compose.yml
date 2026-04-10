@@ -1,35 +1,43 @@
-version : "3"
+version: "3.8" # Updated version string
 
 services:
-    postgres:
-      image: postgres:15
-      environment:
-        POSTGRES_USER: postgres
-        POSTGRES_PASSWORD: password
-        POSTGRES_DB: job_board
-      volumes:
-        - pg-data:/var/lib/postgresql/data
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: job_board
+    volumes:
+      - pg-data:/var/lib/postgresql/data
+    healthcheck: # <--- CRITICAL: Tells Docker when DB is actually usable
+      test: ["CMD-SHELL", "pg_isready -U postgres -d job_board"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
     
-    backend:
-      build: .
-      environment:
-        DB_HOST: postgres
-        DB_USER: postgres
-        DB_PASSWORD: password
-        DB_NAME: job_board
-        JWT_SECRET: supersecretkey123
-      ports:
-        - "3000:3000"
-      depends_on:
-        - postgres
+  backend:
+    build: .
+    environment:
+      DB_HOST: postgres
+      DB_USER: postgres
+      DB_PASSWORD: password
+      DB_NAME: job_board
+      JWT_SECRET: supersecretkey123
+    ports:
+      - "3000:3000"
+    depends_on:
+      postgres:
+        condition: service_healthy # <--- Forces backend to wait for DB to BE READY
+    # Add a restart policy so if it fails the first connection, it tries again
+    restart: on-failure 
 
-    nginx:
-     image: nginx:alpine
-     ports:
+  nginx:
+    image: nginx:alpine
+    ports:
       - "80:80"
-     volumes:
+    volumes:
       - ./nginx/nginx.conf:/etc/nginx/conf.d/default.conf
-     depends_on:
+    depends_on:
       - backend   
 
 volumes:

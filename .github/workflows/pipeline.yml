@@ -1,49 +1,55 @@
 on:
   push:
+    branches:
+      - main
 
 jobs:
-  build:
+
+  test:
     runs-on: ubuntu-latest
     steps:
+
       - name: Checkout code
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
 
-      - name: Login to Docker Hub
-        uses: docker/login-action@v1
-        with:
-          username: ${{ secrets.DOCKER_USERNAME }}
-          password: ${{ secrets.DOCKER_PASSWORD }}
+      - name: Start containers
+        run: docker compose up -d --build
 
-      - name: Build and push Docker image
-        uses: docker/build-push-action@v2
-
-      - name: Start docker compose
-        run: docker compose up -d 
-
-      - name: Test health endpoint
+      - name: Wait and test
         run: |
-          sleep 10  # Give the app 10 seconds to boot up
-          curl -f http://localhost/health || exit 1
+          for i in $(seq 1 15); do
+            curl -s http://localhost/health && echo "App is up" && exit 0
+            echo "Attempt $i failed, retrying..."
+            sleep 5
+          done
+          echo "App failed to start" && exit 1
 
-      - name: Stop docker compose
+      - name: Shut down
         run: docker compose down
 
   deploy:
-    needs: build
     runs-on: ubuntu-latest
+    needs: test
     steps:
+
       - name: Checkout code
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
 
       - name: Login to Docker Hub
-        uses: docker/login-action@v1
-        with:
-          username: ${{ secrets.DOCKER_USERNAME }}
-          password: ${{ secrets.DOCKER_PASSWORD }}
+        run: echo "${{ secrets.DOCKER_PASSWORD }}" | docker login -u "${{ secrets.DOCKER_USERNAME }}" --password-stdin
 
-      - name: Build and push
-        uses: docker/build-push-action@v5
+      - name: Build and push image
+        run: |
+          docker build -t ${{ secrets.DOCKER_USERNAME }}/job-board:latest .
+          docker push ${{ secrets.DOCKER_USERNAME }}/job-board:latest
+
+      - name: Deploy to GCP server
+        uses: appleboy/ssh-action@v1.0.0
         with:
-         context: .
-         push: true  # <--- MUST BE TRUE
-         tags: anafay15/job_board:latest
+          host: ${{ secrets.GCP_HOST }}
+          username: ${{ secrets.GCP_USER }}
+          key: ${{ secrets.GCP_SSH_KEY }}
+          script: |
+            cd job-board
+            git pull
+            docker compose up -d --build
